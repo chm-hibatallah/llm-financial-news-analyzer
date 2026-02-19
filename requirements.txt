@@ -1,0 +1,10 @@
+requests
+beautifulsoup4
+pandas
+transformers
+torch
+newspaper3k
+nltk
+matplotlib
+gradio
+python-dotenv

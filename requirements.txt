@@ -4,7 +4,10 @@ pandas
 transformers
 torch
 newspaper3k
+lxml
+lxml_html_clean
 nltk
 matplotlib
 gradio
 python-dotenv
+feedparser  # optional, for RSS feeds

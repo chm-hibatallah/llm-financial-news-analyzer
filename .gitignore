@@ -1,15 +1,33 @@
+# Config files
+src/config.py
+.env
+*.env
+
+# Data files
+data/raw/*.csv
+data/processed/*.csv
+data/raw/financial_news.csv
+data/raw/financial_news_backup_*.csv
+data/raw/newsapi_*.csv
+data/raw/rss_news_*.csv
+
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.env
 venv/
 env/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
 
-# Data
-data/raw/*.csv
-data/processed/*.csv
-
-# Notebook checkpoints
-.ipynb_checkpoints/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store

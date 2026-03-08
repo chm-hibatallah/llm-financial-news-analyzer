@@ -1,6 +1,4 @@
 """
-data_collection/prices/yfinance_fetcher.py
--------------------------------------------
 Downloads daily OHLCV price data from Yahoo Finance via the `yfinance`
 library and returns typed PriceHistory objects.
 
@@ -250,3 +248,10 @@ class YFinanceFetcher:
         except Exception as exc:
             log.warning("Could not load price cache for %s: %s", ticker, exc)
             return None
+if __name__ == "__main__":
+    fetcher = YFinanceFetcher()
+
+    histories = fetcher.fetch_all(days_back=90)
+
+    for hist in histories:
+        print(hist.ticker, len(hist.bars), "price bars downloaded")        

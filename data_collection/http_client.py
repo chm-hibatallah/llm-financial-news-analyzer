@@ -1,6 +1,4 @@
 """
-data_collection/http_client.py
--------------------------------
 Thin wrapper around `requests` that adds:
   - automatic retries with exponential back-off
   - consistent timeout enforcement

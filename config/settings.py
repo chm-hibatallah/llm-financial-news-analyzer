@@ -25,7 +25,7 @@ COMPANY_KEYWORDS: dict[str, List[str]] = {
 # ---------------------------------------------------------------------------
 # Time window
 # ---------------------------------------------------------------------------
-LOOKBACK_DAYS: int = 90          # how far back to pull history on first run
+LOOKBACK_DAYS: int = 28          # how far back to pull history on first run
 PRICE_INTERVAL: str = "1d"       # yfinance interval: 1d | 1h | 30m
 
 
@@ -35,7 +35,7 @@ PRICE_INTERVAL: str = "1d"       # yfinance interval: 1d | 1h | 30m
 NEWSAPI_KEY: str = os.getenv("NEWSAPI_KEY", "")
 NEWSAPI_BASE_URL: str = "https://newsapi.org/v2/everything"
 NEWSAPI_PAGE_SIZE: int = 100     # max allowed by free tier
-NEWSAPI_MAX_PAGES: int = 3       # 3 × 100 = 300 articles per ticker per run
+NEWSAPI_MAX_PAGES: int = 1      # 3 × 100 = 300 articles per ticker per run
 
 
 # ---------------------------------------------------------------------------

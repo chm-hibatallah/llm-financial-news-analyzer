@@ -1,6 +1,4 @@
 """
-data_collection/schemas.py
---------------------------
 Pydantic models that define the shape of every record flowing through the
 pipeline.  Using strict schemas here catches bad API responses early and
 makes downstream code self-documenting.

@@ -198,3 +198,11 @@ class NewsAPIFetcher:
             self._client.close()
         except Exception:
             pass
+
+
+if __name__ == "__main__":
+    fetcher = NewsAPIFetcher()
+    collections = fetcher.fetch_all()
+
+    for col in collections:
+        print(col.ticker, len(col.articles))

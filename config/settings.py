@@ -1,8 +1,6 @@
 """
-config/settings.py
-------------------
 Central configuration for the FinSentiment pipeline.
-All secrets are read from environment variables — never hardcoded.
+All secrets are read from environment variables .
 """
 
 import os

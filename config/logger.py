@@ -1,6 +1,5 @@
 """
-config/logger.py
-----------------
+
 Single-call logger factory used across every module.
 Usage:
     from config.logger import get_logger

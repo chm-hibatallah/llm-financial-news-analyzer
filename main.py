@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config.logger import get_logger
 from pipeline.api_router import router as collect_router
+from analysis.api_router import router as analysis_router
 
 log = get_logger(__name__)
 
@@ -48,13 +49,11 @@ app.add_middleware(
 
 # Register routers
 app.include_router(collect_router)
+app.include_router(analysis_router)
 
 # Future routers (uncomment as modules are built):
 # from sentiment_engine.api_router import router as sentiment_router
 # app.include_router(sentiment_router)
-
-# from analysis.api_router import router as analysis_router
-# app.include_router(analysis_router)
 
 
 @app.get("/", tags=["Root"])

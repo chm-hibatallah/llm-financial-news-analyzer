@@ -674,7 +674,7 @@ export default function App() {
         {VIEWS[view]}
       </main>
 
-      {/* Footer */}
+      {/* Footer */}Wire up real API calls to your FastAPI backend (analysis, models, /sentiment endpoints)?
       <footer style={{ borderTop:`1px solid ${T.border}`, padding:"16px 24px",
         display:"flex", justifyContent:"center", gap:32,
         fontFamily:"DM Mono", fontSize:10, color:T.textDim }}>

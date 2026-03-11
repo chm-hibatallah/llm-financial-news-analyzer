@@ -11,6 +11,13 @@ data/raw/financial_news_backup_*.csv
 data/raw/newsapi_*.csv
 data/raw/rss_news_*.csv
 
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+.next/
+
 # Python
 __pycache__/
 *.pyc
@@ -31,3 +38,6 @@ build/
 *.swo
 *~
 .DS_Store
+
+# OS
+Thumbs.db

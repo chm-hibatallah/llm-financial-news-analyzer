@@ -1,6 +1,4 @@
 """
-analysis/pipeline.py
----------------------
 Orchestrates the full analysis step:
 
   1. Load the feature matrix from feature_engineering/pipeline.py

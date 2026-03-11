@@ -1,0 +1,14 @@
+[
+  "AAPL LogisticRegression: AUC=0.762 \u2014 meaningful discrimination above random (0.5) | hit_rate=80.0% \u2014 above 50% random baseline",
+  "AAPL XGBoostClassifier: AUC=0.857 \u2014 meaningful discrimination above random (0.5) | hit_rate=70.0% \u2014 above 50% random baseline",
+  "AAPL XGBoostRegressor: R\u00b2=-0.4164 | directional_acc=70.0% | Sharpe=4.30",
+  "MSFT LogisticRegression: AUC=0.429 \u2014 near random, model has no predictive power | hit_rate=30.0% \u2014 at or below random baseline",
+  "MSFT XGBoostClassifier: AUC=0.476 \u2014 near random, model has no predictive power | hit_rate=40.0% \u2014 at or below random baseline",
+  "MSFT XGBoostRegressor: R\u00b2=-0.0816 | directional_acc=60.0% | Sharpe=7.94",
+  "TSLA LogisticRegression: AUC=0.917 \u2014 meaningful discrimination above random (0.5) | hit_rate=70.0% \u2014 above 50% random baseline",
+  "TSLA XGBoostClassifier: AUC=0.667 \u2014 meaningful discrimination above random (0.5) | hit_rate=80.0% \u2014 above 50% random baseline",
+  "TSLA XGBoostRegressor: R\u00b2=0.2539 | directional_acc=80.0% | Sharpe=15.13",
+  "POOLED LogisticRegression: AUC=0.442 \u2014 near random, model has no predictive power | hit_rate=55.2% \u2014 above 50% random baseline",
+  "POOLED XGBoostClassifier: AUC=0.481 \u2014 near random, model has no predictive power | hit_rate=51.7% \u2014 at or below random baseline",
+  "POOLED XGBoostRegressor: R\u00b2=0.1491 | directional_acc=50.0% | Sharpe=1.28"
+]

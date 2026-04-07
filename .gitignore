@@ -42,5 +42,8 @@ build/
 # Streamlit
 .streamlit/secrets.toml
 
+# Screenshots (local only)
+docs/screenshots/
+
 # OS
 Thumbs.db

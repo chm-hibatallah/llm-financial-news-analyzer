@@ -4,6 +4,7 @@ All secrets are read from environment variables .
 """
 
 import os
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List
 
@@ -39,7 +40,7 @@ NEWSAPI_MAX_PAGES: int = 1      # 3 × 100 = 300 articles per ticker per run
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR: str = str(Path(__file__).parent.parent.resolve())
 DATA_DIR: str = os.path.join(BASE_DIR, "data")
 CACHE_DIR: str = os.path.join(DATA_DIR, "cache")
 RAW_NEWS_DIR: str = os.path.join(DATA_DIR, "raw_news")

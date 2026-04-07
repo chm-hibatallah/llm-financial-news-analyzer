@@ -18,9 +18,15 @@ Usage
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from datetime import date, timedelta
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config.settings import PROCESSED_DIR
 
 SEED   = 42
 DAYS   = 90
@@ -44,7 +50,9 @@ def _business_days(start: date, n: int):
     return days
 
 
-def generate_mock_enriched(output_path: str = "data/processed/mock_enriched.parquet"):
+def generate_mock_enriched(output_path: str = None):
+    if output_path is None:
+        output_path = os.path.join(PROCESSED_DIR, "mock_enriched.parquet")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     start = date.today() - timedelta(days=DAYS + 15)

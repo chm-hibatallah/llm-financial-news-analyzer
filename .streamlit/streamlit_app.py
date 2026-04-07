@@ -94,6 +94,65 @@ def get_todays_prices():
     
     return latest_prices if latest_prices else None
 
+def get_todays_streaming_data(ticker):
+    """Get today's OHLCV intraday data for a ticker from streaming cache"""
+    stream_data = get_stream_prices()
+    
+    if not stream_data or ticker not in stream_data:
+        return pd.DataFrame()
+    
+    prices = stream_data.get(ticker, [])
+    if not prices:
+        return pd.DataFrame()
+    
+    # Convert to DataFrame with time-based index
+    df = pd.DataFrame(prices)
+    
+    # Parse timestamp and extract time
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df['time'] = df['timestamp'].dt.strftime("%H:%M")
+    df['date'] = df['timestamp'].dt.date
+    
+    return df
+
+def merge_streaming_with_sentiment(ticker, sentiment_df):
+    """
+    Merge today's streaming price data with historical sentiment data.
+    For today's data, uses streaming prices. For historical, uses simulated prices.
+    """
+    stream_df = get_todays_streaming_data(ticker)
+    
+    if stream_df.empty:
+        return sentiment_df  # Return original if no streaming data
+    
+    # Get today's date
+    today = date.today()
+    today_str = today.isoformat()
+    
+    # Split sentiment data: today vs historical
+    today_sentiment = sentiment_df[sentiment_df['date'] == today_str].copy()
+    historical = sentiment_df[sentiment_df['date'] != today_str].copy()
+    
+    if today_sentiment.empty:
+        return sentiment_df  # No today's sentiment, return as-is
+    
+    # For today's data, replace simulated prices with streaming prices
+    if not stream_df.empty:
+        # Use latest streaming price for today
+        latest_stream_price = stream_df.iloc[-1]['close']
+        today_sentiment['price'] = latest_stream_price
+        
+        # Optionally: add intraday high/low from stream
+        today_sentiment['intraday_high'] = stream_df['high'].max()
+        today_sentiment['intraday_low'] = stream_df['low'].min()
+        today_sentiment['intraday_open'] = stream_df['open'].iloc[0] if not stream_df.empty else latest_stream_price
+    
+    # Combine back
+    combined = pd.concat([historical, today_sentiment], ignore_index=True)
+    combined = combined.sort_values('date').reset_index(drop=True)
+    
+    return combined
+
 # ─── API Calls ────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=300)  # 5 min cache
@@ -260,10 +319,10 @@ def _get_mock_correlation():
 # ─── Views ────────────────────────────────────────────────────────────────
 
 def view_sentiment_timeline():
-    """Sentiment Timeline View"""
-    st.header("📊 Sentiment Timeline")
+    """Sentiment Timeline View with Streaming Prices"""
+    st.header("📊 Sentiment Timeline + Live Prices")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns([1, 3])
     with col1:
         selected_ticker = st.selectbox("Select Ticker", TICKERS, key="st_ticker")
     
@@ -273,21 +332,79 @@ def view_sentiment_timeline():
         st.warning("No sentiment data available")
         return
     
+    # Merge with streaming prices for today's data
+    df = merge_streaming_with_sentiment(selected_ticker, df)
+    
     # Rolling average
     df['score_roll_7d'] = df['score'].rolling(7).mean()
+    df['price_roll_7d'] = df['price'].rolling(7).mean()
     
-    # Chart 1: Daily + 7d rolling
-    fig1 = make_subplots(specs=[[{"secondary_y": False}]])
+    # Chart: Sentiment + Price with dual axes
+    fig1 = make_subplots(specs=[[{"secondary_y": True}]])
     
-    # Bullish area
+    # Bullish sentiment
     bullish = df[df['score'] > 0]
-    fig1.add_trace(go.Bar(x=bullish['date'], y=bullish['score'], name='Bullish',
-                         marker_color='#00e5a0', opacity=0.6))
+    fig1.add_trace(go.Bar(x=bullish['date'], y=bullish['score'], name='Bullish Sentiment',
+                         marker_color='#00e5a0', opacity=0.5), secondary_y=True)
     
-    # Bearish area
+    # Bearish sentiment
     bearish = df[df['score'] < 0]
-    fig1.add_trace(go.Bar(x=bearish['date'], y=bearish['score'], name='Bearish',
-                         marker_color='#ff4d6d', opacity=0.6))
+    fig1.add_trace(go.Bar(x=bearish['date'], y=bearish['score'], name='Bearish Sentiment',
+                         marker_color='#ff4d6d', opacity=0.5), secondary_y=True)
+    
+    # Price line (primary Y axis)
+    fig1.add_trace(go.Scatter(x=df['date'], y=df['price'], name='Price',
+                             line=dict(color=TICKER_COLORS[selected_ticker], width=3),
+                             fill='tozeroy', opacity=0.7), secondary_y=False)
+    
+    # 7-day rolling average
+    fig1.add_trace(go.Scatter(x=df['date'], y=df['score_roll_7d'], name='7-Day Sentiment MA',
+                             line=dict(color='#ffaa00', width=2, dash='dash')), secondary_y=True)
+    
+    fig1.update_layout(
+        title=f"{selected_ticker} · Sentiment + Price Timeline",
+        xaxis_title="Date",
+        template="plotly_dark",
+        hovermode="x unified",
+        height=450,
+    )
+    fig1.update_yaxes(title_text="Price ($)", secondary_y=False)
+    fig1.update_yaxes(title_text="Sentiment Score [-1, +1]", secondary_y=True)
+    
+    st.plotly_chart(fig1, use_container_width=True)
+    
+    # Display today's streaming details if available
+    today = date.today().isoformat()
+    today_data = df[df['date'] == today]
+    
+    if not today_data.empty and 'intraday_high' in today_data.columns:
+        st.subheader("⚡ Today's Streaming Details")
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        row = today_data.iloc[-1]
+        with col1:
+            st.metric("Current Price", f"${row.get('price', 0):.2f}")
+        with col2:
+            st.metric("Open", f"${row.get('intraday_open', 0):.2f}")
+        with col3:
+            st.metric("High", f"${row.get('intraday_high', 0):.2f}")
+        with col4:
+            st.metric("Low", f"${row.get('intraday_low', 0):.2f}")
+        with col5:
+            st.metric("Sentiment", f"{row.get('score', 0):.3f}")
+    
+    # Stats
+    st.subheader("📈 Statistics")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Avg Sentiment", f"{df['score'].mean():.3f}")
+    with col2:
+        st.metric("Bullish Days", len(df[df['label'] == 'bullish']))
+    with col3:
+        st.metric("Bearish Days", len(df[df['label'] == 'bearish']))
+    with col4:
+        st.metric("Avg Price Volatility", f"{df['vol'].mean():.4f}")
+
     
     # Rolling line
     fig1.add_trace(go.Scatter(x=df['date'], y=df['score_roll_7d'], name='7-Day MA',
@@ -315,12 +432,13 @@ def view_sentiment_timeline():
         st.metric("Volatility", f"{df['vol'].mean():.4f}")
 
 def view_price_overlay():
-    """Price + Sentiment Overlay View"""
-    st.header("💹 Price + Sentiment Overlay")
+    """Price + Sentiment Overlay View with Live Streaming"""
+    st.header("💹 Price + Sentiment Overlay (Live)")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns([1, 3])
     with col1:
         selected_ticker = st.selectbox("Select Ticker", TICKERS, key="po_ticker")
+        show_intraday = st.checkbox("Show Intraday Stream", value=True)
     
     df = get_sentiment_timeline(selected_ticker, n=90)
     
@@ -328,41 +446,92 @@ def view_price_overlay():
         st.warning("No sentiment data available")
         return
     
+    # Merge with streaming prices for live data
+    df = merge_streaming_with_sentiment(selected_ticker, df)
+    
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
-    # Price area
-    fig.add_trace(go.Scatter(x=df['date'], y=df['price'], name='Price',
-                            fill='tozeroy', line=dict(color=TICKER_COLORS[selected_ticker]),
-                            opacity=0.6), secondary_y=False)
+    # Price area with gradient
+    fig.add_trace(go.Scatter(x=df['date'], y=df['price'], name='Price (Historical + Live)',
+                            fill='tozeroy', line=dict(color=TICKER_COLORS[selected_ticker], width=3),
+                            opacity=0.7), secondary_y=False)
     
-    # Sentiment bars
-    colors = df['score'].apply(lambda x: '#00e5a0' if x > 0 else '#ff4d6d')
-    fig.add_trace(go.Bar(x=df['date'], y=df['score'], name='Sentiment',
-                        marker=dict(color=colors), opacity=0.4), secondary_y=True)
+    # Sentiment bars (colored by bullish/bearish)
+    colors = df['score'].apply(lambda x: '#00e5a0' if x > 0 else '#ff4d6d' if x < 0 else '#888888')
+    fig.add_trace(go.Bar(x=df['date'], y=df['score'], name='Sentiment Score',
+                        marker=dict(color=colors), opacity=0.5), secondary_y=True)
+    
+    # Add today's streaming high/low as a range if available
+    today = date.today().isoformat()
+    today_data = df[df['date'] == today]
+    if show_intraday and not today_data.empty and 'intraday_high' in today_data.columns:
+        row = today_data.iloc[-1]
+        high = row.get('intraday_high')
+        low = row.get('intraday_low')
+        if high and low:
+            fig.add_hline(y=high, line_dash="dash", line_color="#00e5a0", 
+                         annotation_text=f"High: ${high:.2f}", secondary_y=False,
+                         annotation_position="right")
+            fig.add_hline(y=low, line_dash="dash", line_color="#ff4d6d",
+                         annotation_text=f"Low: ${low:.2f}", secondary_y=False,
+                         annotation_position="right")
     
     fig.update_layout(
-        title=f"{selected_ticker} · Price + Sentiment",
+        title=f"{selected_ticker} · Price + Sentiment (Live Data)",
         xaxis_title="Date",
         template="plotly_dark",
         hovermode="x unified",
-        height=450,
+        height=480,
     )
     fig.update_yaxes(title_text="Price ($)", secondary_y=False)
-    fig.update_yaxes(title_text="Sentiment Score", secondary_y=True)
+    fig.update_yaxes(title_text="Sentiment Score [-1, +1]", secondary_y=True)
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Stats
-    col1, col2, col3, col4 = st.columns(4)
+    # Real-time metrics
+    st.subheader("📊 Live Market Metrics")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
     with col1:
-        st.metric("Avg Sentiment", f"{df['score'].mean():.3f}")
+        latest_price = df['price'].iloc[-1]
+        st.metric("Latest Price", f"${latest_price:.2f}")
+    
     with col2:
-        st.metric("Bullish Days", len(df[df['label'] == 'bullish']))
+        latest_sentiment = df['score'].iloc[-1]
+        sentiment_label = "🟢 Bullish" if latest_sentiment > 0.15 else "🔴 Bearish" if latest_sentiment < -0.15 else "⚪ Neutral"
+        st.metric("Sentiment", f"{latest_sentiment:.3f}", sentiment_label)
+    
     with col3:
-        st.metric("Bearish Days", len(df[df['label'] == 'bearish']))
-    with col4:
         price_change = (df['price'].iloc[-1] - df['price'].iloc[0]) / df['price'].iloc[0]
         st.metric("Price Change", f"{price_change*100:+.1f}%")
+    
+    with col4:
+        st.metric("Bullish Days", len(df[df['label'] == 'bullish']))
+    
+    with col5:
+        st.metric("Bearish Days", len(df[df['label'] == 'bearish']))
+    
+    # Today's intraday details
+    if not today_data.empty and 'intraday_high' in today_data.columns:
+        st.subheader("⚡ Today's Intraday Details (Streaming)")
+        
+        row = today_data.iloc[-1]
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            st.metric("Open", f"${row.get('intraday_open', 0):.2f}")
+        with col2:
+            st.metric("High", f"${row.get('intraday_high', 0):.2f}")
+        with col3:
+            st.metric("Low", f"${row.get('intraday_low', 0):.2f}")
+        with col4:
+            current = row.get('price', 0)
+            open_price = row.get('intraday_open', current)
+            intraday_change = ((current - open_price) / open_price * 100) if open_price else 0
+            st.metric("Intraday Change", f"{intraday_change:+.2f}%")
+        with col5:
+            st.metric("Sentiment", f"{row.get('score', 0):.3f}")
+
 
 def view_correlation_heatmap():
     """Correlation Heatmap View"""
@@ -523,6 +692,126 @@ def view_leaderboard():
                     delta=f"Sharpe: {sharpe_val:.2f}",
                 )
 
+def view_intraday_stream():
+    """Intraday Streaming Prices + Sentiment View"""
+    st.header("⚡ Intraday Streaming + Sentiment")
+    
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        selected_ticker = st.selectbox("Select Ticker", TICKERS, key="stream_ticker")
+    
+    # Get today's streaming data
+    stream_df = get_todays_streaming_data(selected_ticker)
+    
+    if stream_df.empty:
+        st.warning(f"No intraday stream data available for {selected_ticker}. Stream may be inactive or market closed.")
+        st.info("💡 Start stream_prices.py to see real-time intraday data")
+        return
+    
+    # Get sentiment
+    sentiment_df = get_sentiment_timeline(selected_ticker, n=60)
+    today = date.today().isoformat()
+    today_sentiment = sentiment_df[sentiment_df['date'] == today]
+    
+    if today_sentiment.empty:
+        today_sentiment_score = 0
+        today_sentiment_label = "No sentiment data"
+    else:
+        today_sentiment_score = today_sentiment.iloc[-1].get('score', 0)
+        today_sentiment_label = "Bullish 🟢" if today_sentiment_score > 0.15 else "Bearish 🔴" if today_sentiment_score < -0.15 else "Neutral ⚪"
+    
+    # Chart: Intraday prices with sentiment background
+    fig = go.Figure()
+    
+    # Candlestick-like visualization with close prices
+    fig.add_trace(go.Scatter(
+        x=stream_df['time'],
+        y=stream_df['close'],
+        name='Price',
+        mode='lines',
+        line=dict(color='#00d4ff', width=2),
+        fill='tozeroy',
+        opacity=0.7,
+    ))
+    
+    # High/Low bands
+    fig.add_trace(go.Scatter(
+        x=stream_df['time'],
+        y=stream_df['high'],
+        name='High',
+        mode='lines',
+        line=dict(width=0),
+        showlegend=False,
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=stream_df['time'],
+        y=stream_df['low'],
+        name='Low',
+        fill='tonexty',
+        mode='lines',
+        line=dict(width=0),
+        fillcolor='rgba(0,212,255,0.2)',
+        showlegend=False,
+    ))
+    
+    # Add sentiment color band at top
+    sentiment_color = '#00e5a0' if today_sentiment_score > 0.15 else '#ff4d6d' if today_sentiment_score < -0.15 else '#888888'
+    
+    fig.update_layout(
+        title=f"{selected_ticker} · Intraday Stream + Sentiment ({today_sentiment_label})",
+        xaxis_title="Time",
+        yaxis_title="Price ($)",
+        template="plotly_dark",
+        hovermode="x unified",
+        height=450,
+    )
+    
+    # Add sentiment as background color
+    fig.add_shape(
+        type="rect",
+        x0=0, y0=0, x1=1, y1=1,
+        xref="paper", yref="paper",
+        fillcolor=sentiment_color,
+        opacity=0.05,
+        layer="below",
+        line_width=0,
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Real-time metrics
+    st.subheader("📊 Intraday Summary")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    open_price = stream_df.iloc[0]['open']
+    close_price = stream_df.iloc[-1]['close']
+    high_price = stream_df['high'].max()
+    low_price = stream_df['low'].min()
+    net_change = close_price - open_price
+    
+    with col1:
+        st.metric("Open", f"${open_price:.2f}")
+    with col2:
+        st.metric("Current", f"${close_price:.2f}")
+    with col3:
+        st.metric("Change", f"${net_change:+.2f}")
+    with col4:
+        st.metric("Sentiment", f"{today_sentiment_score:.3f}", today_sentiment_label)
+    with col5:
+        st.metric("Range", f"${high_price - low_price:.2f}")
+    
+    # Detailed table
+    st.subheader("📈 Timestamp Details")
+    display_df = stream_df[['time', 'open', 'high', 'low', 'close', 'volume']].copy()
+    display_df['open'] = display_df['open'].apply(lambda x: f"${x:.2f}")
+    display_df['high'] = display_df['high'].apply(lambda x: f"${x:.2f}")
+    display_df['low'] = display_df['low'].apply(lambda x: f"${x:.2f}")
+    display_df['close'] = display_df['close'].apply(lambda x: f"${x:.2f}")
+    display_df['volume'] = display_df['volume'].apply(lambda x: f"{x:,.0f}")
+    
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
 # ─── Main App ─────────────────────────────────────────────────────────────────
 def main():
     # Header
@@ -566,6 +855,7 @@ def main():
             [
                 "📊 Sentiment Timeline",
                 "💹 Price Overlay",
+                "⚡ Intraday Stream",
                 "🔗 Correlation",
                 "⚡ Features",
                 "🔬 Granger",
@@ -582,12 +872,13 @@ def main():
         - 📊 **Technical Analysis** (RSI, ATR, SMA)
         - 🤖 **ML Models** (XGBoost, LSTM, LR)
         - 🔬 **Causal Analysis** (Granger tests)
+        - ⚡ **Live Streaming** (1-min intraday prices)
         
         **Tickers:** AAPL, TSLA, MSFT
-        **Window:** 90 days
-        **Updated:** Daily
+        **Window:** 90 days historical + today's stream
+        **Updated:** Every 60 seconds
         
-        **Data Source:** 🔗 Real API
+        **Data Source:** 🔗 Real API + yfinance stream
         """)
     
     # Route to views
@@ -595,6 +886,8 @@ def main():
         view_sentiment_timeline()
     elif "💹 Price Overlay" in view:
         view_price_overlay()
+    elif "⚡ Intraday Stream" in view:
+        view_intraday_stream()
     elif "🔗 Correlation" in view:
         view_correlation_heatmap()
     elif "⚡ Features" in view:

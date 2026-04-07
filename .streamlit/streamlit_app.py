@@ -2,11 +2,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from pathlib import Path
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 import json
+import os
 
 # ─── Page Config ─────────────────────────────────────────────────────────
 st.set_page_config(page_title="FinSentiment Lab", layout="wide", initial_sidebar_state="expanded")
@@ -50,6 +52,47 @@ TICKER_COLORS = {
 
 # Get API base from secrets or use default
 API_BASE = st.secrets.get("api_base", "http://localhost:8000")
+
+# ─── Stream Cache Functions ──────────────────────────────────────────────────
+
+@st.cache_data(ttl=5)  # Refresh every 5 seconds for near real-time
+def get_stream_prices():
+    """Read today's prices from the streaming cache"""
+    try:
+        # Try to find cache from parent directory (assuming script runs from root)
+        cache_paths = [
+            Path("data/cache/intraday_prices.json"),
+            Path("../data/cache/intraday_prices.json"),
+            Path("/data/cache/intraday_prices.json"),
+        ]
+        
+        cache_file = None
+        for p in cache_paths:
+            if p.exists():
+                cache_file = p
+                break
+        
+        if cache_file:
+            with open(cache_file, "r") as f:
+                data = json.load(f)
+                return data.get("tickers", {})
+    except Exception as e:
+        pass  # Silently fail, will use mock data
+    
+    return {}
+
+def get_todays_prices():
+    """Get the latest real-time prices for today"""
+    stream_data = get_stream_prices()
+    if not stream_data:
+        return None
+    
+    latest_prices = {}
+    for ticker, prices in stream_data.items():
+        if prices:
+            latest_prices[ticker] = prices[-1]["close"]
+    
+    return latest_prices if latest_prices else None
 
 # ─── API Calls ────────────────────────────────────────────────────────────
 
@@ -485,6 +528,34 @@ def main():
     # Header
     st.markdown("# 📈 **FinSentiment**Lab")
     st.markdown("*Financial News Sentiment Analysis Dashboard*")
+    st.markdown("---")
+    
+    # ─── Real-time Price Ticker ───────────────────────────────────────────
+    st.subheader("⚡ Today's Prices (Real-Time Stream)")
+    
+    # Get current streaming prices
+    todays_prices = get_todays_prices()
+    
+    if todays_prices:
+        # Display streaming prices with styled metrics
+        cols = st.columns(len(TICKERS))
+        for i, ticker in enumerate(TICKERS):
+            with cols[i]:
+                if ticker in todays_prices:
+                    price = todays_prices[ticker]
+                    st.metric(
+                        f"${ticker}",
+                        f"${price:.2f}",
+                        delta=None,
+                        label_visibility="collapsed"
+                    )
+                else:
+                    st.info(f"{ticker}: Waiting for stream...")
+        
+        st.caption("💫 Updates every ~60 seconds from stream_prices.py")
+    else:
+        st.info("💤 Real-time price stream not active. Start stream_prices.py to see live prices here!")
+    
     st.markdown("---")
     
     # Sidebar Navigation
